@@ -1,0 +1,62 @@
+# Vivado generated directories
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.srcs/sources_1/ip/*/
+*.gen/
+.Xil/
+
+# Vivado project files (regenerate from build.tcl)
+*.xpr
+*.xpi
+*.str
+
+# Vivado logs and journals
+*.jou
+*.log
+*.pb
+*.wdb
+*.wcfg
+vivado*.backup.*
+vivado_pid*.str
+
+# Synthesis/implementation outputs
+*.bit
+*.ltx
+*.bin
+*.mmi
+*.rpt
+*.dcp
+
+# Simulation artifacts
+*.vcd
+*.fsdb
+*.shm/
+xsim.dir/
+webtalk*.xml
+webtalk*.html
+usage_statistics_*.html
+usage_statistics_*.xml
+
+# ModelSim/QuestaSim (if used)
+work/
+transcript
+*.mti
+*.mpf
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python (if you use cocotb or scripts)
+__pycache__/
+*.pyc
+.venv/
+venv/
