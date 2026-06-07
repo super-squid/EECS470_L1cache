@@ -1,6 +1,6 @@
-// configurable_lru.sv
+// lru_replacement.sv
 
-module configurable_lru #(
+module basic_lru #(
     parameter NUM_SETS = 16,
     parameter NUM_WAYS = 2,
     parameter SET_BITS = (NUM_SETS <= 1) ? 1 : $clog2(NUM_SETS),
