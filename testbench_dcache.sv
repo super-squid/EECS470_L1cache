@@ -1,148 +1,136 @@
-// tb_dcache.sv
-module tb_dcache;
-    parameter AW = 32;   // address width
-    parameter DW = 32;   // data word width
-    parameter CACHE_BYTES = 256;
-    parameter BLOCK_BYTES = 16;
+`timescale 1ns / 1ps
 
-    logic clk, rst;
-    dcache_if #(.AW(AW), .DW(DW)) cpu_if();
-    dcache_if #(.AW(AW), .DW(DW)) mem_if();
+module tb_dcache();
+    parameter AW = 32;
+    parameter DW = 32;
 
-    // Instantiate Design Under Test (DUT)
-    simple_dcache #(
-        .AW(AW), .DW(DW),
-        .CACHE_BYTES(CACHE_BYTES),
-        .BLOCK_BYTES(BLOCK_BYTES),
-        .ASSOC(1)
-    ) dut (
+    logic clk;
+    logic rst;
+    logic [DW-1:0] rdata;
+
+    // Interface Instantiation
+    dcache_if #(AW, DW) cpu_if();
+
+    // Cache Device Under Test (DUT) Instantiation
+    simple_dcache dut (
         .clk(clk),
         .rst(rst),
-        .cpu_if(cpu_if.cpu),
-        .mem_if(mem_if.mem)
+        .cpu(cpu_if.mem)
     );
 
-    // Instantiate DRAM Model
-    dram_model #(
-        .AW(AW),
-        .BLOCK_BYTES(BLOCK_BYTES),
-        .READ_DELAY(2)
-    ) dram (
-        .clk(clk),
-        .iface(mem_if)
-    );
-    
-    // Helper tasks to drive interface
-    task automatic read(input [AW-1:0] addr, output [DW-1:0] data);
-        cpu_if.req_valid = 1;
-        cpu_if.rw = 0;
-        cpu_if.addr = addr;
-        @(posedge clk);
-        wait(cpu_if.ready);
-        data = cpu_if.rdata;
-        cpu_if.req_valid = 0;
-    endtask
-
-    task automatic write(input [AW-1:0] addr, input [DW-1:0] data);
-        cpu_if.req_valid = 1;
-        cpu_if.rw = 1;
-        cpu_if.addr = addr;
-        cpu_if.wdata = data;
-        @(posedge clk);
-        wait(cpu_if.ready);
-        cpu_if.req_valid = 0;
-    endtask
-
-    logic [DW-1:0] rdata;
-        
-    // Clock
+    // Clock Generation (10 ns period)
     initial clk = 0;
     always #5 clk = ~clk;
 
-    // Testing with trace file
+    // Basic Read Task
+    task read(input [AW-1:0] req_addr, output [DW-1:0] req_data_out);
+        @(posedge clk);
+        cpu_if.req_valid = 1'b1;
+        cpu_if.rw = 1'b0;
+        cpu_if.addr = req_addr;
+        wait(cpu_if.ready);
+        req_data_out = cpu_if.rdata;
+        @(posedge clk);
+        cpu_if.req_valid = 1'b0;
+    endtask
+
+    // Basic Write Task
+    task write(input [AW-1:0] req_addr, input [DW-1:0] req_data_in);
+        @(posedge clk);
+        cpu_if.req_valid = 1'b1;
+        cpu_if.rw = 1'b1;
+        cpu_if.addr = req_addr;
+        cpu_if.wdata = req_data_in;
+        wait(cpu_if.ready);
+        @(posedge clk);
+        cpu_if.req_valid = 1'b0;
+    endtask
+
+    // Trace-Driven Test Sequence
     initial begin
-        // File IO
+        // File I/O Variables
         int fd, status;
         logic trace_rw;
+        logic [AW-1:0] trace_pc;   // NEW: Program Counter
         logic [AW-1:0] trace_addr;
         logic [DW-1:0] trace_data;
         
-        // Performance analysis
+        // Performance Counters
         int total_reqs = 0;
         int hit_count = 0;
         int miss_count = 0;
         int start_time, elapsed_time;
         real hit_rate;
 
-        // reset
+        // 1. Hardware Reset Sequence
         rst = 1;
+        cpu_if.req_valid = 0;
         repeat (2) @(posedge clk);
         rst = 0;
         @(posedge clk);
 
-        // File IO (Read in the trace file)
-        fd = $fopen("simple_trace.txt", "r");
+        // 2. Open the Trace File
+        fd = $fopen("trace.txt", "r");
         if (fd == 0) begin
-            $display("Error");
+            $display("Error: Could not open trace.txt");
             $finish;
         end
+        $display("Starting PC-Tracked Mock CPU Session...");
 
-        // actual testing
+        // 3. Main Trace Execution Loop
         while (!$feof(fd)) begin
-            // Parse line format: <read/write bit> <hex address> <hex write data>
-            status = $fscanf(fd, "%b %h %h\n", trace_rw, trace_addr, trace_data);
+            // Parse expanded format: <rw> <pc> <addr> <data>
+            status = $fscanf(fd, "%b %h %h %h\n", trace_rw, trace_pc, trace_addr, trace_data);
             
-            if (status == 3) begin
+            if (status == 4) begin
                 total_reqs++;
 
-                // give random idle CPU time
+                // Pipeline Bubble Generator (0-3 idle cycles)
                 repeat($urandom_range(0, 3)) @(posedge clk);
 
-                // get request start time
                 start_time = $time; 
 
-                // Drive the cache interface
+                // Execute the transaction
                 if (trace_rw == 1'b0) begin
                     read(trace_addr, rdata);
                 end else begin
                     write(trace_addr, trace_data);
                 end
 
-                // count elapsed time
                 elapsed_time = $time - start_time; 
 
-                // count hit count
+                // Cycle-Accurate Latency Tracking with PC
                 if (elapsed_time <= 10) begin
                     hit_count++;
-                    $display("[%0t ns] REQ %0d: HIT  | Addr: 0x%h", $time, total_reqs, trace_addr);
+                    $display("[%0t ns] REQ %0d: HIT  | PC: 0x%h | Addr: 0x%h", 
+                             $time, total_reqs, trace_pc, trace_addr);
                 end else begin
                     miss_count++;
-                    $display("[%0t ns] REQ %0d: MISS | Addr: 0x%h | Latency: %0d ns", $time, total_reqs, trace_addr, elapsed_time);
+                    $display("[%0t ns] REQ %0d: MISS | PC: 0x%h | Addr: 0x%h | Latency: %0d ns", 
+                             $time, total_reqs, trace_pc, trace_addr, elapsed_time);
                 end
+            end else if (status != -1) begin
+                break; // Prevent Vivado infinite loop on trailing empty lines
             end
         end
 
-        // performance analysis
         $fclose(fd);
 
+        // Calculate Final Metrics
         if (total_reqs > 0) begin
             hit_rate = (real'(hit_count) / real'(total_reqs)) * 100.0;
         end else begin
             hit_rate = 0.0;
         end
         
-        $display("\nPerformance Results:");
-        $display("Total Accesses: %0d", total_reqs);
-        $display("Hits: %0d", hit_count);
-        $display("Misses: %0d", miss_count);
-        $display("Hit Rate: %0.2f%%", hit_rate);
+        $display("\n==============================");
+        $display("    PERFORMANCE RESULTS");
+        $display("==============================");
+        $display("Total Accesses : %0d", total_reqs);
+        $display("Hits           : %0d", hit_count);
+        $display("Misses         : %0d", miss_count);
+        $display("Hit Rate       : %0.2f%%", hit_rate);
+        $display("==============================");
         $finish;
     end
-
-    // Monitor
-    initial begin
-        $monitor("Time %0t: req=%b, addr=%h, rw=%b, ready=%b, rdata=%h",
-                 $time, cpu_if.req_valid, cpu_if.addr, cpu_if.rw, cpu_if.ready, cpu_if.rdata);
-    end
-
 endmodule
