@@ -1,59 +1,75 @@
+// dram_model.sv
 module dram_model #(
     parameter AW = 32,
-    parameter BLOCK_BYTES = 16,
-    parameter READ_DELAY = 2
+    parameter BLOCK_BYTES = 16,   // 16 bytes per cache block
+    parameter READ_DELAY = 2      // clock cycles
 ) (
-    input logic clk,rst,
-    dcache_if.mem iface
+    input logic clk,
+    input logic rst,
+    dcache_if.dram iface
 );
-    localparam MEM_DEPTH = 4 * 1024 * 1024;
+    // Memory size: 64KB for simulation
+    localparam MEM_DEPTH = 65536;
     logic [7:0] memory [0:MEM_DEPTH-1];
-
+    
+    initial begin
+        for (int i = 0; i < MEM_DEPTH; i++) begin
+            memory[i] = i[7:0];
+        end
+    end
+    
     typedef enum logic [1:0] { IDLE, WAIT_READ } state_t;
     state_t state, next_state;
     logic [AW-1:0] latched_addr;
     int wait_cnt;
-    
-    initial begin
-    for (int i = 0; i < MEM_DEPTH; i++) 
-        memory[i] = 0;
+    always_comb begin
+        next_state = state;
     end
-    
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             state <= IDLE;
+            latched_addr <= '0;
             wait_cnt <= 0;
+            iface.ready <= 1'b0;
+            iface.rdata <= '0;
         end else begin
-        case (state)
-            IDLE: begin
-                if (iface.req_valid) begin
-                    if (iface.rw == 0) begin  // read
+            iface.ready <= 1'b0;
+    
+            case (state)
+                IDLE: begin
+                    if (iface.req_valid) begin
                         latched_addr <= iface.addr;
-                        wait_cnt <= READ_DELAY;
-                        state <= WAIT_READ;
-                        iface.ready <= 0;
-                    end else begin             // write
-                        for (int i = 0; i < BLOCK_BYTES; i++)
-                            memory[iface.addr + i] <= iface.wdata[i*8 +: 8];
-                        iface.ready <= 1;
+    
+                        if (iface.rw == 1'b0) begin
+                            wait_cnt <= READ_DELAY;
+                            state <= WAIT_READ;
+                        end else begin
+                            for (int i = 0; i < BLOCK_BYTES; i++) begin
+                                memory[iface.addr + i] <= iface.wdata[i*8 +: 8];
+                            end
+                            iface.ready <= 1'b1;
+                            state <= IDLE;
+                        end
                     end
-                end else begin
-                    iface.ready <= 0;
                 end
-            end
-
-            WAIT_READ: begin
-                if (wait_cnt == 1) begin
-                    for (int i = 0; i < BLOCK_BYTES; i++)
-                        iface.rdata[i*8 +: 8] <= memory[latched_addr + i];
-                    iface.ready <= 1;
+    
+                WAIT_READ: begin
+                    if (wait_cnt <= 1) begin
+                        for (int i = 0; i < BLOCK_BYTES; i++) begin
+                            iface.rdata[i*8 +: 8] <= memory[latched_addr + i];
+                        end
+                        iface.ready <= 1'b1;
+                        wait_cnt <= 0;
+                        state <= IDLE;
+                    end else begin
+                        wait_cnt <= wait_cnt - 1;
+                    end
+                end
+    
+                default: begin
                     state <= IDLE;
-                end else begin
-                    wait_cnt <= wait_cnt - 1;
-                    iface.ready <= 0;
                 end
-            end
-        endcase
+            endcase
         end
     end
 endmodule
