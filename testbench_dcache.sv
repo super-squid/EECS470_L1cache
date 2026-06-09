@@ -27,7 +27,8 @@ module tb_dcache;
         .READ_DELAY(2)
     ) dram (
         .clk(clk),
-        .iface(mem_if)
+        .iface(mem_if.mem),
+        .rst(rst)
     );
     
         // Helper task
@@ -68,7 +69,7 @@ module tb_dcache;
 
         // Test 1: Read miss
         $display("Test 1: Read miss at 0x0000_0000");
-        read(32'h0000_0000, rdata);
+        read(0, rdata);
         $display("  Read data = %h", rdata);
 
         // Test 2: Read hit

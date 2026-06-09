@@ -12,12 +12,12 @@ interface dcache_if #(
     logic          mem_ready; // from DRAM
 
     modport cpu (
-        input  req_valid, rw, addr, wdata,
-        output rdata, ready
+        output req_valid, rw, addr, wdata,
+        input rdata, ready
     );
     modport mem (
-        output req_valid, rw, addr, wdata,
-        input  rdata, ready
+        input req_valid, rw, addr, wdata,
+        output  rdata, ready
     );
     modport monitor (        // for testbench to observe all signals
         input  req_valid, rw, addr, wdata, rdata, ready, mem_ready
