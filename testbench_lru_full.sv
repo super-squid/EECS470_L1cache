@@ -140,13 +140,13 @@ module testbench_lru_full;
     task check_victim_4(input int set, input string msg);
         lookup_set_4 = set[SET_BITS_4-1:0];
         #1;
-
+        ev = expected_victim_2(set); 
         $display("[CHECK 4-WAY] %s", msg);
         $display("    lookup_set=%0d expected_victim=%0d actual_victim=%0d",
-                 set, expected_victim_4(set), victim_way_4);
+                 set, ev, victim_way_4);
         print_ages_4(set);
 
-        if (victim_way_4 !== expected_victim_4(set)[WAY_BITS_4-1:0]) begin
+        if (victim_way_4 !== ev[WAY_BITS_4-1:0]) begin
             $display("    RESULT: FAIL");
             $finish;
         end else begin
@@ -157,13 +157,13 @@ module testbench_lru_full;
     task check_victim_2(input int set, input string msg);
         lookup_set_2 = set[SET_BITS_2-1:0];
         #1;
-
+        
+        ev = expected_victim_2(set); 
         $display("[CHECK 2-WAY] %s", msg);
         $display("    expected_victim=%0d actual_victim=%0d",
-                 expected_victim_2(set), victim_way_2);
+                 ev, victim_way_2);
         print_ages_2();
-
-        if (victim_way_2 !== expected_victim_2(set)[WAY_BITS_2-1:0]) begin
+        if (victim_way_2 !== ev[WAY_BITS_2-1:0]) begin
             $display("    RESULT: FAIL");
             $finish;
         end else begin

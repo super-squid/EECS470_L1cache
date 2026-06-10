@@ -11,6 +11,11 @@ module tb_dcache;
     dcache_if #(.AW(AW), .DW(DW)) cpu_if();
     dcache_if #(.AW(AW), .DW(BLOCK_BITS)) mem_if();
 
+    // Eviction outputs from dcache; unused in this testbench (no victim cache)
+    logic                  evict_valid_unused;
+    logic [AW-1:0]         evict_addr_unused;
+    logic [BLOCK_BITS-1:0] evict_data_unused;
+
     simple_dcache #(
         .AW(AW), .DW(DW),
         .CACHE_BYTES(CACHE_BYTES),
@@ -20,7 +25,10 @@ module tb_dcache;
         .clk(clk),
         .rst(rst),
         .cpu_if(cpu_if.cpu),
-        .mem_if(mem_if.cache_mem)
+        .mem_if(mem_if.cache_mem),
+        .evict_valid(evict_valid_unused),
+        .evict_addr (evict_addr_unused),
+        .evict_data (evict_data_unused)
     );
 
     dram_model #(
