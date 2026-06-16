@@ -158,9 +158,13 @@ module victim_cache #(
                 end
 
                 VC_HIT: begin
+                    // Move the hit line to L1 by invalidating it here.
+                    // If victim_way == hit_way_lat and evict_valid is true, the
+                    // valid=1 write below wins (last NBA write in same always_ff),
+                    // so the evicted line correctly replaces the freed slot.
+                    vc[hit_way_lat].valid <= 1'b0;
+
                     // Absorb the L1 evicted line into the current LRU victim slot.
-                    // victim_way is pre-update (before hit_way_lat is marked MRU),
-                    // so it correctly holds the least-recently-used slot.
                     if (evict_valid) begin
                         vc[victim_way].valid <= 1'b1;
                         vc[victim_way].tag   <= evict_addr[AW-1:OFFSET_BITS];
