@@ -206,7 +206,18 @@ module tb_two_way_dcache;
         end
         check_read(32'h0000_0000, 32'hDEADBEEF, 1'b1,
                    "Read old written address after eviction");
-
+        $display("\n[Test 10] Word offset write/read test");
+        
+        write(32'h0000_0030, 32'hAAAABBBB);
+        write(32'h0000_0034, 32'hCCCCDDDD);
+        write(32'h0000_0038, 32'hEEEEFFFF);
+        write(32'h0000_003C, 32'h12345678);
+        
+        check_read(32'h0000_0030, 32'hAAAABBBB, 1'b0, "Read word offset 0");
+        check_read(32'h0000_0034, 32'hCCCCDDDD, 1'b0, "Read word offset 4");
+        check_read(32'h0000_0038, 32'hEEEEFFFF, 1'b0, "Read word offset 8");
+        check_read(32'h0000_003C, 32'h12345678, 1'b0, "Read word offset 12");
+        
         $display("\n All Tests Passed.");
         #50;
         $finish;

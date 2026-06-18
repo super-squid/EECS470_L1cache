@@ -133,7 +133,7 @@ module two_way_dcache #(
     
     always_comb begin
         updated_block = cache[index][hit_way].data;
-        updated_block[offset*8 +: DW] = cpu_if.wdata;
+        updated_block[offset*8 +: CPU_DW] = cpu_if.wdata;
     end
     
     always_comb begin
@@ -234,16 +234,11 @@ module two_way_dcache #(
                 cache[req_index][req_way].tag   <= req_tag;
                 cache[req_index][req_way].data  <= mem_if.rdata;
             end
+            // Write miss refill.
             else if (state == WRITE_MISS_UPDATE) begin
                 cache[req_index][req_way].valid <= 1'b1;
                 cache[req_index][req_way].tag   <= req_tag;
                 cache[req_index][req_way].data  <= refill_updated_block;
-            end
-            // Write miss refill.
-            else if (state == WRITE_MISS_REFILL && mem_if.ready) begin
-                cache[req_index][req_way].valid <= 1'b1;
-                cache[req_index][req_way].tag   <= req_tag;
-                cache[req_index][req_way].data  <= write_miss_block;
             end
         end
     end
@@ -301,7 +296,7 @@ module two_way_dcache #(
             end
 
             READ_RESP: begin
-                cpu_if.rdata = mem_if.rdata[req_offset*8 +: DW];
+                cpu_if.rdata = mem_if.rdata[req_offset*8 +: CPU_DW];
                 cpu_if.ready = 1'b1;
                 next_state   = IDLE;
             end
