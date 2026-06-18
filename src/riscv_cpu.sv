@@ -1,3 +1,28 @@
+// riscv_cpu.sv
+//
+// Simple five-stage RV32I-style CPU.
+// Module name: cpu
+//
+// Pipeline:
+//   IF  - instruction fetch
+//   ID  - decode/register read
+//   EX  - ALU/branch
+//   MEM - data memory
+//   WB  - register writeback
+//
+// Data memory interface uses dcache_if.cpu.
+// This version is designed to work directly with dram_model.sv using:
+//   dram_model #(.BLOCK_BYTES(4))
+//
+// Supported enough instructions for testing:
+//   ADD, SUB, AND, OR, XOR, SLT, SLTU, SLL, SRL, SRA
+//   ADDI, ANDI, ORI, XORI, SLTI, SLTIU, SLLI, SRLI, SRAI
+//   LW, SW
+//   BEQ, BNE, BLT, BGE, BLTU, BGEU
+//   LUI, AUIPC
+//   JAL, JALR
+//   EBREAK
+
 module cpu #(
     parameter RESET_PC = 32'h0000_0000
 ) (
@@ -30,10 +55,16 @@ module cpu #(
     localparam INSTR_NOP     = 32'h0000_0013; // addi x0, x0, 0
     localparam INSTR_EBREAK  = 32'h0010_0073;
 
-    //reg file
+    // ------------------------------------------------------------
+    // Register file
+    // ------------------------------------------------------------
+
     logic [31:0] regs [0:31];
 
-    // ALU commands
+    // ------------------------------------------------------------
+    // ALU types
+    // ------------------------------------------------------------
+
     typedef enum logic [3:0] {
         ALU_ADD,
         ALU_SUB,
@@ -75,7 +106,10 @@ module cpu #(
         endcase
     endfunction
 
-    // immediate types
+    // ------------------------------------------------------------
+    // Immediate generation
+    // ------------------------------------------------------------
+
     function automatic logic [31:0] imm_i(input logic [31:0] instr);
         imm_i = {{20{instr[31]}}, instr[31:20]};
     endfunction
@@ -98,17 +132,26 @@ module cpu #(
                  instr[20], instr[30:21], 1'b0};
     endfunction
 
-    //IF stage
+    // ------------------------------------------------------------
+    // IF stage
+    // ------------------------------------------------------------
+
     logic [31:0] pc;
 
     assign imem_addr = pc;
 
-    // IF-ID reg
+    // ------------------------------------------------------------
+    // IF/ID pipeline register
+    // ------------------------------------------------------------
+
     logic        ifid_valid;
     logic [31:0] ifid_pc;
     logic [31:0] ifid_instr;
 
-    // ID wires
+    // ------------------------------------------------------------
+    // ID decode
+    // ------------------------------------------------------------
+
     logic [6:0] id_opcode;
     logic [2:0] id_funct3;
     logic [6:0] id_funct7;
@@ -129,7 +172,6 @@ module cpu #(
     assign id_rs1_val = (id_rs1 == 5'd0) ? 32'd0 : regs[id_rs1];
     assign id_rs2_val = (id_rs2 == 5'd0) ? 32'd0 : regs[id_rs2];
 
-    // Decode control
     alu_op_t     dec_alu_op;
     logic        dec_alu_src_imm;
     logic        dec_op_a_pc;
@@ -160,6 +202,7 @@ module cpu #(
         dec_use_rs2     = 1'b0;
 
         case (id_opcode)
+
             OPCODE_OP: begin
                 dec_reg_write = 1'b1;
                 dec_use_rs1   = 1'b1;
@@ -188,19 +231,19 @@ module cpu #(
 
                 case (id_funct3)
                     3'b000: dec_alu_op = ALU_ADD; // ADDI
-                    3'b111: dec_alu_op = ALU_AND; // ANDI
-                    3'b110: dec_alu_op = ALU_OR;  // ORI
-                    3'b100: dec_alu_op = ALU_XOR; // XORI
-                    3'b010: dec_alu_op = ALU_SLT; // SLTI
-                    3'b011: dec_alu_op = ALU_SLTU;// SLTIU
-                    3'b001: dec_alu_op = ALU_SLL; // SLLI
+                    3'b111: dec_alu_op = ALU_AND;
+                    3'b110: dec_alu_op = ALU_OR;
+                    3'b100: dec_alu_op = ALU_XOR;
+                    3'b010: dec_alu_op = ALU_SLT;
+                    3'b011: dec_alu_op = ALU_SLTU;
+                    3'b001: dec_alu_op = ALU_SLL;
                     3'b101: dec_alu_op = ifid_instr[30] ? ALU_SRA : ALU_SRL;
                     default: dec_alu_op = ALU_ADD;
                 endcase
             end
 
             OPCODE_LOAD: begin
-                // Only LW is used by this testbench.
+                // Only LW is used/supported in this simple CPU.
                 dec_reg_write   = 1'b1;
                 dec_mem_read    = 1'b1;
                 dec_wb_sel      = WB_MEM;
@@ -211,7 +254,7 @@ module cpu #(
             end
 
             OPCODE_STORE: begin
-                // Only SW is used by this testbench.
+                // Only SW is used/supported in this simple CPU.
                 dec_mem_write   = 1'b1;
                 dec_alu_src_imm = 1'b1;
                 dec_alu_op      = ALU_ADD;
@@ -259,16 +302,19 @@ module cpu #(
             end
 
             OPCODE_SYSTEM: begin
-                // EBREAK is detected later in WB.
+                // EBREAK handled when it reaches WB.
             end
 
             default: begin
-                // Unsupported instruction acts like NOP.
+                // Treat unsupported instructions as NOP.
             end
         endcase
     end
 
-    // ID-EX reg
+    // ------------------------------------------------------------
+    // ID/EX pipeline register
+    // ------------------------------------------------------------
+
     logic        idex_valid;
     logic [31:0] idex_pc;
     logic [31:0] idex_pc4;
@@ -291,7 +337,10 @@ module cpu #(
     logic        idex_jump;
     logic        idex_jalr;
 
-    //EX-MEM reg
+    // ------------------------------------------------------------
+    // EX/MEM pipeline register
+    // ------------------------------------------------------------
+
     logic        exmem_valid;
     logic [31:0] exmem_instr;
     logic [4:0]  exmem_rd;
@@ -303,14 +352,20 @@ module cpu #(
     logic        exmem_reg_write;
     wb_sel_t     exmem_wb_sel;
 
-    //MEM-WB reg
+    // ------------------------------------------------------------
+    // MEM/WB pipeline register
+    // ------------------------------------------------------------
+
     logic        memwb_valid;
     logic [31:0] memwb_instr;
     logic [4:0]  memwb_rd;
     logic [31:0] memwb_wb_data;
     logic        memwb_reg_write;
 
-    // write back logic
+    // ------------------------------------------------------------
+    // Register writeback / halt
+    // ------------------------------------------------------------
+
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             for (int i = 0; i < 32; i++) begin
@@ -330,7 +385,10 @@ module cpu #(
         end
     end
 
-    // forwarding logic (could be wrong)
+    // ------------------------------------------------------------
+    // Forwarding
+    // ------------------------------------------------------------
+
     logic [31:0] fwd_rs1;
     logic [31:0] fwd_rs2;
 
@@ -365,7 +423,10 @@ module cpu #(
         end
     end
 
-    // EX logic
+    // ------------------------------------------------------------
+    // EX stage
+    // ------------------------------------------------------------
+
     logic [31:0] alu_a;
     logic [31:0] alu_b;
     logic [31:0] alu_result;
@@ -412,13 +473,18 @@ module cpu #(
         end
     end
 
-    // IMPORTANT! Using our memory system
+    // ------------------------------------------------------------
+    // Data memory interface
+    // ------------------------------------------------------------
+    //
+    // dram_model expects request valid as a pulse.
+    // Therefore, this CPU sends one request pulse and then waits for ready.
+
     logic exmem_is_mem;
     logic dmem_req_sent;
 
     assign exmem_is_mem = exmem_valid && (exmem_mem_read || exmem_mem_write);
 
-    // One-cycle request pulse.
     assign dmem.req_valid = exmem_is_mem && !dmem_req_sent;
     assign dmem.rw        = exmem_mem_write;
     assign dmem.addr      = exmem_alu_result;
@@ -442,18 +508,10 @@ module cpu #(
         end
     end
 
-    // Store drain bubble.
-    // simple_dcache can signal ready to the CPU before its write-through path
-    // has fully cleared through victim_cache/DRAM. This one-cycle bubble prevents
-    // the CPU from immediately issuing another memory request.
-    logic completing_store;
+    // ------------------------------------------------------------
+    // Load-use hazard detection
+    // ------------------------------------------------------------
 
-    assign completing_store =
-        exmem_valid &&
-        exmem_mem_write &&
-        dmem.ready;
-
-    // load use hazard
     logic load_use_stall;
 
     always_comb begin
@@ -467,7 +525,10 @@ module cpu #(
         end
     end
 
-    //main pipeline registers
+    // ------------------------------------------------------------
+    // Main pipeline registers
+    // ------------------------------------------------------------
+
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             pc <= RESET_PC;
@@ -516,108 +577,91 @@ module cpu #(
             memwb_reg_write  <= 1'b0;
         end else if (!halted) begin
 
-            // Freeze whole pipeline while data memory request is outstanding.
+            // If data memory is busy, freeze the whole pipeline.
             if (!mem_wait) begin
 
-                // One-cycle post-store bubble
-                if (completing_store) begin
-                    // Retire the store into WB bookkeeping.
-                    memwb_valid     <= exmem_valid;
-                    memwb_instr     <= exmem_instr;
-                    memwb_rd        <= exmem_rd;
-                    memwb_reg_write <= exmem_reg_write;
-                    memwb_wb_data   <= exmem_wb_data;
+                // ------------------------------
+                // MEM/WB update
+                // ------------------------------
+                memwb_valid     <= exmem_valid;
+                memwb_instr     <= exmem_instr;
+                memwb_rd        <= exmem_rd;
+                memwb_reg_write <= exmem_reg_write;
 
-                    // Bubble EX/MEM.
-                    exmem_valid      <= 1'b0;
-                    exmem_instr      <= INSTR_NOP;
-                    exmem_rd         <= 5'd0;
-                    exmem_alu_result <= 32'd0;
-                    exmem_store_data <= 32'd0;
-                    exmem_wb_data    <= 32'd0;
-                    exmem_mem_read   <= 1'b0;
-                    exmem_mem_write  <= 1'b0;
-                    exmem_reg_write  <= 1'b0;
-                    exmem_wb_sel     <= WB_ALU;
-
-                    // Hold ID/EX, IF/ID, and PC by not assigning them.
+                if (exmem_mem_read) begin
+                    memwb_wb_data <= dmem.rdata;
                 end else begin
-                    //pipeline registers update
-                    //MEM-WB
-                    memwb_valid     <= exmem_valid;
-                    memwb_instr     <= exmem_instr;
-                    memwb_rd        <= exmem_rd;
-                    memwb_reg_write <= exmem_reg_write;
+                    memwb_wb_data <= exmem_wb_data;
+                end
 
-                    if (exmem_mem_read) begin
-                        memwb_wb_data <= dmem.rdata;
-                    end else begin
-                        memwb_wb_data <= exmem_wb_data;
-                    end
+                // ------------------------------
+                // EX/MEM update
+                // ------------------------------
+                exmem_valid      <= idex_valid;
+                exmem_instr      <= idex_instr;
+                exmem_rd         <= idex_rd;
+                exmem_alu_result <= alu_result;
+                exmem_store_data <= fwd_rs2;
+                exmem_wb_data    <= ex_wb_data;
+                exmem_mem_read   <= idex_mem_read;
+                exmem_mem_write  <= idex_mem_write;
+                exmem_reg_write  <= idex_reg_write;
+                exmem_wb_sel     <= idex_wb_sel;
 
-                    // EX-MEM 
-                    exmem_valid      <= idex_valid;
-                    exmem_instr      <= idex_instr;
-                    exmem_rd         <= idex_rd;
-                    exmem_alu_result <= alu_result;
-                    exmem_store_data <= fwd_rs2;
-                    exmem_wb_data    <= ex_wb_data;
-                    exmem_mem_read   <= idex_mem_read;
-                    exmem_mem_write  <= idex_mem_write;
-                    exmem_reg_write  <= idex_reg_write;
-                    exmem_wb_sel     <= idex_wb_sel;
+                // ------------------------------
+                // ID/EX update
+                // ------------------------------
+                if (branch_taken || load_use_stall) begin
+                    idex_valid       <= 1'b0;
+                    idex_instr       <= INSTR_NOP;
+                    idex_mem_read    <= 1'b0;
+                    idex_mem_write   <= 1'b0;
+                    idex_reg_write   <= 1'b0;
+                    idex_branch      <= 1'b0;
+                    idex_jump        <= 1'b0;
+                    idex_jalr        <= 1'b0;
+                end else begin
+                    idex_valid       <= ifid_valid;
+                    idex_pc          <= ifid_pc;
+                    idex_pc4         <= ifid_pc + 32'd4;
+                    idex_instr       <= ifid_instr;
+                    idex_rs1         <= id_rs1;
+                    idex_rs2         <= id_rs2;
+                    idex_rd          <= id_rd;
+                    idex_funct3      <= id_funct3;
+                    idex_rs1_val     <= id_rs1_val;
+                    idex_rs2_val     <= id_rs2_val;
+                    idex_imm         <= dec_imm;
+                    idex_alu_op      <= dec_alu_op;
+                    idex_alu_src_imm <= dec_alu_src_imm;
+                    idex_op_a_pc     <= dec_op_a_pc;
+                    idex_mem_read    <= dec_mem_read;
+                    idex_mem_write   <= dec_mem_write;
+                    idex_reg_write   <= dec_reg_write;
+                    idex_wb_sel      <= dec_wb_sel;
+                    idex_branch      <= dec_branch;
+                    idex_jump        <= dec_jump;
+                    idex_jalr        <= dec_jalr;
+                end
 
-                    // ID/EX 
-                    if (branch_taken || load_use_stall) begin
-                        idex_valid       <= 1'b0;
-                        idex_instr       <= INSTR_NOP;
-                        idex_mem_read    <= 1'b0;
-                        idex_mem_write   <= 1'b0;
-                        idex_reg_write   <= 1'b0;
-                        idex_branch      <= 1'b0;
-                        idex_jump        <= 1'b0;
-                        idex_jalr        <= 1'b0;
-                    end else begin
-                        idex_valid       <= ifid_valid;
-                        idex_pc          <= ifid_pc;
-                        idex_pc4         <= ifid_pc + 32'd4;
-                        idex_instr       <= ifid_instr;
-                        idex_rs1         <= id_rs1;
-                        idex_rs2         <= id_rs2;
-                        idex_rd          <= id_rd;
-                        idex_funct3      <= id_funct3;
-                        idex_rs1_val     <= id_rs1_val;
-                        idex_rs2_val     <= id_rs2_val;
-                        idex_imm         <= dec_imm;
-                        idex_alu_op      <= dec_alu_op;
-                        idex_alu_src_imm <= dec_alu_src_imm;
-                        idex_op_a_pc     <= dec_op_a_pc;
-                        idex_mem_read    <= dec_mem_read;
-                        idex_mem_write   <= dec_mem_write;
-                        idex_reg_write   <= dec_reg_write;
-                        idex_wb_sel      <= dec_wb_sel;
-                        idex_branch      <= dec_branch;
-                        idex_jump        <= dec_jump;
-                        idex_jalr        <= dec_jalr;
-                    end
-
-                    // IF/ID and PC
-                    if (branch_taken) begin
-                        pc          <= branch_target;
-                        ifid_valid  <= 1'b0;
-                        ifid_pc     <= 32'd0;
-                        ifid_instr  <= INSTR_NOP;
-                    end else if (load_use_stall) begin
-                        pc          <= pc;
-                        ifid_valid  <= ifid_valid;
-                        ifid_pc     <= ifid_pc;
-                        ifid_instr  <= ifid_instr;
-                    end else begin
-                        ifid_valid  <= 1'b1;
-                        ifid_pc     <= pc;
-                        ifid_instr  <= imem_rdata;
-                        pc          <= pc + 32'd4;
-                    end
+                // ------------------------------
+                // IF/ID and PC update
+                // ------------------------------
+                if (branch_taken) begin
+                    pc          <= branch_target;
+                    ifid_valid  <= 1'b0;
+                    ifid_pc     <= 32'd0;
+                    ifid_instr  <= INSTR_NOP;
+                end else if (load_use_stall) begin
+                    pc          <= pc;
+                    ifid_valid  <= ifid_valid;
+                    ifid_pc     <= ifid_pc;
+                    ifid_instr  <= ifid_instr;
+                end else begin
+                    ifid_valid  <= 1'b1;
+                    ifid_pc     <= pc;
+                    ifid_instr  <= imem_rdata;
+                    pc          <= pc + 32'd4;
                 end
             end
         end
