@@ -8,13 +8,15 @@ This repository contains a simple yet complete L1 data cache model written in Sy
 
 | File                     | Description                                                                                   |
 |--------------------------|-----------------------------------------------------------------------------------------------|
-| `dcache_interface.sv`    | Defines the `dcache_if` interface used between CPU, cache, and memory. Contains `modport`s for CPU side, memory side, and a monitor. |
+| `dcache_interface.sv` | Defines the `dcache_if` interface used between CPU/testbench, cache, and DRAM. Includes CPU-side, cache-to-memory, DRAM-side, and monitor modports. |
 | `simple_dcache.sv`       | The direct‑mapped L1 data cache. Implements the FSM for read/write hits, read misses, and write misses. Uses write‑through & write‑allocate. |
 | `dram_model.sv`          | A simplified DRAM model with configurable read delay. Simulates 64KB byte‑addressable memory. Write‑through writes complete in one cycle; reads take `READ_DELAY` cycles. |
 | `testbench_dcache.sv`    | Testbench for the data cache. Instantiates the cache and DRAM, drives basic test patterns (read miss, read hit, write hit, write miss, conflict miss), and prints results. |
 | `lru_replacement.sv`     | A parameterized LRU replacement policy module (`basic_lru`). Tracks per‑set way ages; `victim_way` output always points to the least‑recently‑used way. Supports arbitrary `NUM_SETS` × `NUM_WAYS` configurations. |
 | `testbench_lru.sv`       | Lightweight sanity testbench for `basic_lru` (4 sets × 4 ways). Verifies that sequential `touch` calls produce the expected victim after each access. |
 | `testbench_lru_full.sv`  | Comprehensive testbench for `basic_lru`. Exercises 4‑way and 2‑way instances simultaneously with nine test groups: reset init, sequential access, multi‑set independence, repeated accesses, hold behavior, boundary cases (1 set × 2 ways), and a 100‑step deterministic pseudo‑random sequence. Uses a software reference model for golden comparison. |
+| `two_way_dcache.sv` | Parameterized set-associative DCache. Default configuration is 2-way, but `ASSOC` can be changed to test N-way behavior. Supports hit-way detection, invalid-way fill, LRU victim selection, write-through, and write-allocate. | 
+| `testbench_two_way_dcache.sv` | Directed testbench for `two_way_dcache.sv`. Tests read miss, read hit, write hit, write miss, same-set multi-way fill, LRU eviction, and write-through persistence after eviction. |
 
 ---
 
@@ -31,6 +33,18 @@ This repository contains a simple yet complete L1 data cache model written in Sy
 | `ASSOC`           | 1       | Associativity. This model is direct‑mapped (only 1).                                      |
 | `READ_DELAY`      | 2       | *(dram_model only)* Number of clock cycles a DRAM read takes.                             |
 
+### `two_way_dcache.sv` 
+| Parameter | Default | Meaning | 
+|---|---:|---| 
+| `AW` | 32 | Address width in bits. | 
+| `DW` | 32 | CPU word width in bits. | 
+| `CACHE_BYTES` | 256 | Total cache capacity in bytes. | 
+| `BLOCK_BYTES` | 16 | Cache block size in bytes. | 
+| `ASSOC` | 2 | Number of ways. Default is 2-way set associative, but it can be changed to 1, 4, etc. | 
+| `BLOCK_BITS` | derived | `BLOCK_BYTES * 8`, memory-side cache block width. | 
+| `NUM_SETS` | derived | `CACHE_BYTES / (BLOCK_BYTES * ASSOC)`. | 
+| `WAY_BITS` | derived | Number of bits needed to select a way. |
+
 ### `lru_replacement.sv`
 
 | Parameter    | Default | Meaning                                              |
@@ -46,6 +60,7 @@ This repository contains a simple yet complete L1 data cache model written in Sy
 - **`TAG_BITS`**    = `AW - INDEX_BITS - OFFSET_BITS` – remaining bits for tag comparison.
 - **`NUM_LINES`**   = `CACHE_BYTES / BLOCK_BYTES` – total number of cache lines (ways × sets).
 - **`NUM_SETS`**    = `NUM_LINES / ASSOC` – number of sets (for direct‑mapped = `NUM_LINES`).
+
 
 ---
 
@@ -120,6 +135,27 @@ PASS: FULL VERBOSE LRU TESTBENCH PASSED
 ========================================
 ```
 
+### Two-way / N-way set-associative cache testbench 
+For the set-associative cache, compile the following files: 
+```text 
+src/dcache_interface.sv 
+src/dram_model.sv 
+src/lru_replacement.sv 
+src/two_way_dcache.sv 
+testbench/testbench_two_way_dcache.sv
+```
+Set the simulation top module to:
+```
+tb_two_way_dcache
+```
+In Vivado Tcl Console, run:
+```
+run -all
+```
+The testbench uses ASSOC = 2 by default. To test more ways, change the ASSOC parameter in testbench_two_way_dcache.sv, for example:
+```
+parameter ASSOC = 4;
+```
 
 ---
 
