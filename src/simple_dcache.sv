@@ -8,7 +8,7 @@ module simple_dcache #(
 ) (
     input  logic clk,
     input  logic rst,
-    dcache_if.cpu       cpu_if,
+    dcache_if.mem       cpu_if,
     dcache_if.cache_mem mem_if,
 
     // Eviction outputs: valid for one cycle whenever a valid L1 line is displaced
@@ -163,7 +163,6 @@ module simple_dcache #(
                             mem_if.req_valid = 1;
                             mem_if.rw = 1;
                             mem_if.addr = {cpu_if.addr[AW-1:OFFSET_BITS], {OFFSET_BITS{1'b0}}};
-                            cache[index].data <= updated_block;
                             mem_if.wdata = updated_block;  // updated block
                             // CPU ready when memory accepts (immediate)
                             cpu_if.ready = 1;
