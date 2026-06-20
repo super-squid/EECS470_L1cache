@@ -6,10 +6,16 @@ module simple_dcache #(
     parameter BLOCK_BYTES = 16,
     parameter ASSOC = 1              // direct-mapped
 ) (
-    input logic clk,
-    input logic rst,
-    dcache_if.cpu cpu_if,
-    dcache_if.cache_mem mem_if
+    input  logic clk,
+    input  logic rst,
+    dcache_if.cpu       cpu_if,
+    dcache_if.cache_mem mem_if,
+
+    // Eviction outputs: valid for one cycle whenever a valid L1 line is displaced
+    // (READ_MISS or WRITE_MISS_REFILL completion). Consumed by victim_cache.
+    output logic                      evict_valid,
+    output logic [AW-1:0]             evict_addr,
+    output logic [BLOCK_BYTES*8-1:0]  evict_data
 );
 
     // Derived parameters
@@ -73,6 +79,14 @@ module simple_dcache #(
     assign cache_tag   = cache[index].tag;
     assign cache_valid = cache[index].valid;
     assign hit = cache_valid && (cache_tag == tag);
+
+    // Eviction signals: high for one cycle when a valid line is displaced on a miss.
+    // cache[req_index] holds the OLD line (pre-fill) because the fill is registered.
+    assign evict_valid = ((state == READ_MISS) || (state == WRITE_MISS_REFILL))
+                         && mem_if.ready
+                         && cache[req_index].valid;
+    assign evict_addr  = {cache[req_index].tag, req_index, {OFFSET_BITS{1'b0}}};
+    assign evict_data  = cache[req_index].data;
 
     // FSM sequential
     always_ff @(posedge clk or posedge rst) begin
