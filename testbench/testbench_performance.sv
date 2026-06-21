@@ -1,3 +1,4 @@
+// Make sure you put the .hex file under <vivado_project>/<vivado_project>.sim/sim_1/behav/xsim/ for this to work
 `timescale 1ns/1ps
 
 module performance_analysis;
@@ -101,6 +102,7 @@ module performance_analysis;
         end
 
         if (!$value$plusargs("PROG=%s", program_file)) begin
+            // Make sure you put the .hex file under <vivado_project>/<vivado_project>.sim/sim_1/behav/xsim/ for this to work
             program_file = "instruction_list.hex";
         end
 
