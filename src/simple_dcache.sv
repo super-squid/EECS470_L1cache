@@ -1,4 +1,3 @@
-// simple_dcache.sv
 module simple_dcache #(
     parameter AW = 32,
     parameter DW = 32,
@@ -8,7 +7,7 @@ module simple_dcache #(
 ) (
     input  logic clk,
     input  logic rst,
-    dcache_if.cpu       cpu_if,
+    dcache_if.mem       cpu_if,
     dcache_if.cache_mem mem_if,
 
     // Eviction outputs: valid for one cycle whenever a clean valid L1 line is displaced.
@@ -150,7 +149,15 @@ module simple_dcache #(
                         if (!cpu_if.rw) begin   // read hit
                             cpu_if.rdata = cache[index].data[offset*8 +: DW];
                             cpu_if.ready = 1;
-                        end else begin           // write hit: update cache only, no DRAM
+                            next_state = IDLE;
+                        end else begin              // write hit
+                            // write-through: update cache (done in sequential block)
+                            // also write to memory (same cycle)
+                            mem_if.req_valid = 1;
+                            mem_if.rw = 1;
+                            mem_if.addr = {cpu_if.addr[AW-1:OFFSET_BITS], {OFFSET_BITS{1'b0}}};
+                            mem_if.wdata = updated_block;  // updated block
+                            // CPU ready when memory accepts (immediate)
                             cpu_if.ready = 1;
                         end
                     end else begin
