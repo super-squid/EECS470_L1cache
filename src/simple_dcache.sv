@@ -156,7 +156,7 @@ module simple_dcache #(
                             mem_if.req_valid = 1;
                             mem_if.rw = 1;
                             mem_if.addr = {cpu_if.addr[AW-1:OFFSET_BITS], {OFFSET_BITS{1'b0}}};
-                            mem_if.wdata = updated_block;  // updated block
+                            mem_if.wdata = refill_updated_block;  // updated block
                             // CPU ready when memory accepts (immediate)
                             cpu_if.ready = 1;
                         end
