@@ -1,0 +1,22 @@
+Vtestbench_next_line_prefetcher__ALL.o: \
+  Vtestbench_next_line_prefetcher__ALL.cpp \
+  Vtestbench_next_line_prefetcher.cpp \
+  Vtestbench_next_line_prefetcher__pch.h \
+  /opt/homebrew/Cellar/verilator/5.048/share/verilator/include/verilated.h \
+  /opt/homebrew/Cellar/verilator/5.048/share/verilator/include/verilated_config.h \
+  /opt/homebrew/Cellar/verilator/5.048/share/verilator/include/verilatedos.h \
+  /opt/homebrew/Cellar/verilator/5.048/share/verilator/include/verilated_types.h \
+  /opt/homebrew/Cellar/verilator/5.048/share/verilator/include/verilated_funcs.h \
+  Vtestbench_next_line_prefetcher__Syms.h \
+  Vtestbench_next_line_prefetcher.h \
+  Vtestbench_next_line_prefetcher___024root.h \
+  /opt/homebrew/Cellar/verilator/5.048/share/verilator/include/verilated_timing.h \
+  Vtestbench_next_line_prefetcher_dcache_if__D80.h \
+  Vtestbench_next_line_prefetcher___024root__0.cpp \
+  Vtestbench_next_line_prefetcher_dcache_if__D80__0.cpp \
+  Vtestbench_next_line_prefetcher__main.cpp \
+  Vtestbench_next_line_prefetcher___024root__Slow.cpp \
+  Vtestbench_next_line_prefetcher___024root__0__Slow.cpp \
+  Vtestbench_next_line_prefetcher_dcache_if__D80__Slow.cpp \
+  Vtestbench_next_line_prefetcher_dcache_if__D80__0__Slow.cpp \
+  Vtestbench_next_line_prefetcher__Syms__Slow.cpp
